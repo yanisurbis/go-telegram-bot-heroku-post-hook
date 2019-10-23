@@ -1,0 +1,10 @@
+{
+  "name": "smartagent-front-release-bot",
+  "version": 2,
+  "builds": [
+    {
+      "src": "bot.go",
+      "use": "@now/go"
+    }
+  ]
+}
