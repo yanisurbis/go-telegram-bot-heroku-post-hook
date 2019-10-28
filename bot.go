@@ -6,10 +6,33 @@ import (
 	"github.com/joho/godotenv"
 	"net/http"
 	"os"
+	"regexp"
+	"sort"
 	"strconv"
+	"strings"
 )
 
 var telegramBot *tgbotapi.BotAPI
+var reJiraTask *regexp.Regexp = regexp.MustCompile(`SMAR-\d{4}`)
+
+func RemoveDuplicates(tasks []string) []string {
+	sort.Slice(tasks, func(i, j int) bool { return tasks[i] < tasks[j ]})
+	tasksNoDuplicates := make([]string, 0)
+
+	prevTask := ""
+	for _, task := range tasks {
+		if prevTask != task {
+			tasksNoDuplicates = append(tasksNoDuplicates, task)
+		}
+		prevTask = task
+	}
+
+	return tasksNoDuplicates
+}
+
+func GetAffectedTasks(gitLog string) []string {
+	return RemoveDuplicates(reJiraTask.FindAllString(gitLog, 100))
+}
 
 func ValidateEnvVars() {
 	if os.Getenv("APP_ENV") == "dev" {
@@ -64,13 +87,22 @@ func Handler(_ http.ResponseWriter, r *http.Request) {
 
 	fmt.Printf("Params: %v\n", r.Form)
 
-	keys := []string{"app", "url", "release", "user", "head", "head_long", "prev_head", "git_log"}
+	keys := []string{"app", "url", "release", "user", "git_log", "head", "head_long", "prev_head"}
 
 	message := "Deployment completed \n\n"
 	for _, key := range keys {
 		value := r.Form.Get(key)
 		if value != "" {
-			message += key + ": " + value + "\n"
+			if key == "git_log" {
+				affectedTasks := GetAffectedTasks(value)
+				if len(affectedTasks) > 0 {
+					message += "affected: " + strings.Join(affectedTasks, ", ") + "\n"
+				}
+
+				message += key + ": " + "\n" + value + "\n"
+			} else {
+				message += key + ": " + value + "\n"
+			}
 		}
 	}
 
@@ -80,8 +112,8 @@ func Handler(_ http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func main() {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", Handler)
-	_ = http.ListenAndServe(":8080", mux)
-}
+//func main() {
+//	mux := http.NewServeMux()
+//	mux.HandleFunc("/", Handler)
+//	_ = http.ListenAndServe(":8080", mux)
+//}
