@@ -5,6 +5,7 @@ import (
 	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/joho/godotenv"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"sort"
@@ -77,21 +78,14 @@ func GetBot(token string) *tgbotapi.BotAPI {
 	}
 }
 
-func Handler(_ http.ResponseWriter, r *http.Request) {
-	token, chatId := GetBotTokenAndChatId()
-	bot := GetBot(token)
-	err := r.ParseForm()
-	if err != nil {
-		return
-	}
+func BuildMessage(values url.Values) string {
+	// ignore: "head", "head_long", "prev_head"
+	keys := []string{"app", "url", "release", "user", "git_log"}
 
-	fmt.Printf("Params: %v\n", r.Form)
-
-	keys := []string{"app", "url", "release", "user", "git_log", "head", "head_long", "prev_head"}
 
 	message := "Deployment completed \n\n"
 	for _, key := range keys {
-		value := r.Form.Get(key)
+		value := values.Get(key)
 		if value != "" {
 			if key == "git_log" {
 				affectedTasks := GetAffectedTasks(value)
@@ -106,6 +100,20 @@ func Handler(_ http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	return message
+}
+
+func Handler(_ http.ResponseWriter, r *http.Request) {
+	token, chatId := GetBotTokenAndChatId()
+	bot := GetBot(token)
+	err := r.ParseForm()
+	if err != nil {
+		return
+	}
+
+	fmt.Printf("Params: %v\n", r.Form)
+
+	message := BuildMessage(r.Form)
 	_, err = bot.Send(tgbotapi.NewMessage(chatId, message))
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
